@@ -1,0 +1,4 @@
+terraclimate=terra
+wbmstabledist04=wbm04
+wbmstabledist19=wbm19
+wbmstableprist=wbmpr
