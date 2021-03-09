@@ -15,5 +15,5 @@ setup(name='gpkgimport',
           'postgis2geoserver=gpkgimport.postgis2geoserver:main',
           'postgis_pivot=gpkgimport.postgis_pivot:main'],
       },
-      package_data={'': ['*.txt']},
+      package_data={'': ['ghaas_*.txt']},
         )
