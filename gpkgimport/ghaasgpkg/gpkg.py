@@ -62,6 +62,26 @@ def file_to_list(file_in):
         return tables
 
 
+def extract_tables(gpkg):
+    """Extract tablenames from geopackage without indexes or metadata tables.
+
+    Args:
+        gpkg (Path): Path to geopackages
+
+    Yields:
+        Generator: Generator of table names
+    """
+    import sqlite3
+    conn = sqlite3.connect(gpkg)                                
+    cursor = conn.cursor()
+
+    res = conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    for name_t in res:
+        name= name_t[0]
+        if not name.startswith('rtree') and not name.startswith('gpkg') and not name.startswith('sqlite'):
+            yield name
+
+
 def extract_gpkg_meta(gpkg):
     """Extract information from geopackage filepath and filename
 
@@ -72,13 +92,15 @@ def extract_gpkg_meta(gpkg):
         dict: metadata from filename
     """
     gpkg_info = [component.lower() for component in gpkg.name.split('_')]
+    tables = extract_tables(gpkg)
 
     # Geography only geopackage (no model output)
     if gpkg_info[1] == 'geography':
         meta = dict(
             is_output=False,
             geography=gpkg_info[0],
-            resolution=gpkg_info[2].split('.')[0]
+            resolution=gpkg_info[2].split('.')[0],
+            tables=tables
         )
         return meta
     else:
@@ -100,7 +122,8 @@ def extract_gpkg_meta(gpkg):
             is_output=True,
             geography=gpkg_info[0],
             model_short=model_short,
-            resolution=gpkg_info[2].split('.')[0]
+            resolution=gpkg_info[2].split('.')[0], 
+            tables=tables
         )
         return meta
 
@@ -145,16 +168,16 @@ def import_gpkg(pg_con, gpkg):
     postgres_tables = []
 
     if gpkg_meta['is_output']:
-        for mo in MODEL_OUTPUTS:
+        for mo in gpkg_meta['tables']:
             pg_table_name = '{}."{}_{}_{}"'.format(
-                gpkg_meta['geography'], mo, gpkg_meta['model_short'], gpkg_meta['resolution'])
+                gpkg_meta['geography'], mo.lower(), gpkg_meta['model_short'], gpkg_meta['resolution'])
             postgres_tables.append(pg_table_name)
             cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo)
             cmds.append(cmd)
     else:
-        for su in SPATIAL_UNITS:
+        for su in gpkg_meta['tables']:
             pg_table_name = '{}."{}_{}"'.format(
-                gpkg_meta['geography'], su, gpkg_meta['resolution'])
+                gpkg_meta['geography'], su.lower(), gpkg_meta['resolution'])
             postgres_tables.append(pg_table_name)
             cmd = _import_gpkg(pg_con, gpkg, pg_table_name, su)
             cmds.append(cmd)
