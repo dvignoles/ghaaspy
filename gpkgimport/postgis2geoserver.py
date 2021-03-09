@@ -1,5 +1,5 @@
-from ghaasgpkg.gpkg import sanitize_path, file_to_list
-from ghaasgpkg.geoserver import publish_geoserver_sqlview_batch, connect_geoserver
+from .ghaasgpkg.gpkg import sanitize_path, file_to_list
+from .ghaasgpkg.geoserver import publish_geoserver_sqlview_batch, connect_geoserver
 import argparse
 from pathlib import Path
 
