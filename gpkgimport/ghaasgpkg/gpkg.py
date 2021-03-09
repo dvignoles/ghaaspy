@@ -83,9 +83,19 @@ def extract_gpkg_meta(gpkg):
         return meta
     else:
         # Model output geopackage
-        model_pt1, model_pt2 = gpkg_info[1].split('+')
-        model_short = '+'.join([MODEL_SHORTNAMES[model_pt1],
-                                MODEL_SHORTNAMES[model_pt2]])
+        model_pts = gpkg_info[1].split('+')
+
+        if len(model_pts) == 2:
+            model_pt1, model_pt2 = model_pts
+            model_short = '+'.join([MODEL_SHORTNAMES[model_pt1],
+                                    MODEL_SHORTNAMES[model_pt2]])
+        
+        if len(model_pts) == 3:
+            model_pt1, model_pt2, model_pt3 = model_pts
+            model_short = '+'.join([MODEL_SHORTNAMES[model_pt1],
+                                    MODEL_SHORTNAMES[model_pt2],
+                                    MODEL_SHORTNAMES[model_pt3]])
+
         meta = dict(
             is_output=True,
             geography=gpkg_info[0],

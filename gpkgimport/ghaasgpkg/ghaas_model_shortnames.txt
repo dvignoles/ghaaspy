@@ -2,3 +2,7 @@ terraclimate=terra
 wbmstabledist04=wbm04
 wbmstabledist19=wbm19
 wbmstableprist=wbmpr
+wbmstablesed=wbmsed
+dist04=dist04
+dist19=dist19
+prist=prist
