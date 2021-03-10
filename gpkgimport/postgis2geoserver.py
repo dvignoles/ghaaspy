@@ -19,7 +19,7 @@ def main():
     
     args = parser.parse_args()
     
-    geo = connect_geoserver(args.geoserver_url, username=args.geoserver_user, password=args.geoserver_password)
+    geo = connect_geoserver(args.geoserver_url, user=args.geoserver_user, password=args.geoserver_password)
 
     views = file_to_list(args.viewnames_file)
 
