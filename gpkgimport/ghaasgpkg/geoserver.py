@@ -1,7 +1,7 @@
 from geo.Geoserver import Geoserver
 
-def connect_geoserver(geoserver_url, geoserver_user, geoserver_password):
-    return Geoserver(geoserver_url, geoserver_user, geoserver_password)
+def connect_geoserver(geoserver_url, user, password):
+    return Geoserver(geoserver_url, user, password)
 
 def publish_geoserver_sqlview(geo, view_name, store_name, workspace):
     sql = 'SELECT * FROM {}'.format(view_name)
