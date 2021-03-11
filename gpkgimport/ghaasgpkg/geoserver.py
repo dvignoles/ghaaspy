@@ -12,7 +12,7 @@ def publish_geoserver_sqlview(geo, view_name, store_name, workspace, geography=F
     if geography: 
         key_col = 'id'
 
-    geo.publish_featurestore_sqlview(name=name, store_name=store_name, sql=sql, key_column='sampleid', workspace=workspace)
+    geo.publish_featurestore_sqlview(name=name, store_name=store_name, sql=sql, key_column=key_col, workspace=workspace)
     print(name)
 
 def publish_geoserver_sqlview_batch(geo, views_list, store_name, workspace, geography=False):
