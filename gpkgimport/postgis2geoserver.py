@@ -16,6 +16,7 @@ def main():
     parser.add_argument('geoserver_password')
     parser.add_argument('geoserver_store', help='geoserver postgis store where to connect sql views with')
     parser.add_argument('geoserver_workspace', help='existing geoserver workspace to publish to')
+    parser.add_argument('--geography', help='indicate tables are "geography tables" and not model outputs', action='store_true')
     
     args = parser.parse_args()
     
@@ -23,7 +24,10 @@ def main():
 
     views = file_to_list(args.viewnames_file)
 
-    publish_geoserver_sqlview_batch(geo, views, args.geoserver_store, args.geoserver_workspace)
+    if args.geography:
+        publish_geoserver_sqlview_batch(geo, views, args.geoserver_store, args.geoserver_workspace, geography=True)
+    else:
+        publish_geoserver_sqlview_batch(geo, views, args.geoserver_store, args.geoserver_workspace, geography=False)
 
 
 if __name__ == '__main__':
