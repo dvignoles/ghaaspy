@@ -38,7 +38,7 @@ def sanitize_path(p):
     Returns:
         Path: Absolute Path object
     """
-    return p.expanduser().resolve()
+    return p.expanduser().resolve(strict=True)
 
 
 def list_to_file(mylist, file_out):
@@ -72,6 +72,7 @@ def extract_tables(gpkg):
         Generator: Generator of table names
     """
     import sqlite3
+    print(gpkg)
     conn = sqlite3.connect(gpkg)                                
     cursor = conn.cursor()
 
