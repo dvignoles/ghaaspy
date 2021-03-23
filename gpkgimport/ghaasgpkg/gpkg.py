@@ -276,6 +276,29 @@ def group_annual_monthly(table_names):
             annual_monthly[key] = annual_monthly[key].union(set(group))
     return annual_monthly
 
+def sift_temporal_group(table_group):
+    """Returns a dict of tables key'd by their temporal identifier from a unordered set of tables
+
+    Args:
+        table_group (set): set of tables grouped together as annual/monthly/daily variants
+    
+    Returns:
+        table_group_dict (dict): {'annual': annual_table, 'monthly':monthly_table, 'daily': daily_table OR None}
+    """
+    table_group_dict = {'annual':None, 'monthly': None, 'daily': None}
+    assert(len(table_group) <= 3)
+    for t in table_group:
+        if 'annual' in t:
+            table_group_dict['annual'] = t
+        elif 'monthly' in t:
+            table_group_dict['monthly'] = t
+        elif 'daily' in t:
+            table_group_dict['daily'] = t
+    
+    return table_group_dict
+
+
+
 def create_pivot_tables(table_names, output_file):
     """Write sql to file generating pivot tables and accompanying yearly views for a list of postgres tables generated through import_gpkg
 

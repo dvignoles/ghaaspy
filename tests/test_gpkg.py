@@ -128,6 +128,14 @@ class TestGpkg(unittest.TestCase):
             "\"brazil\".\"discharge_reservoirdam_annual_terra+wbm04_03min\"",
             "\"brazil\".\"discharge_reservoirdam_monthly_terra+wbm04_03min\""
         ]))
+    
+    def test_sift_temporal_group(self):
+        table_group1 = set(['my_table_annual', 'my_table_monthly', 'my_table_daily'])
+        table_group2 = set(['my_table_annual', 'my_table_monthly',])
+
+        self.assertEqual(sift_temporal_group(table_group1), {'annual':'my_table_annual', 'monthly':'my_table_monthly', 'daily':'my_table_daily'})
+        self.assertEqual(sift_temporal_group(table_group2), {'annual':'my_table_annual', 'monthly':'my_table_monthly', 'daily':None})
+
 
 if __name__ == '__main__':
     unittest.main()
