@@ -38,7 +38,7 @@ def sanitize_path(p):
     Returns:
         Path: Absolute Path object
     """
-    return p.expanduser().resolve(strict=True)
+    return p.expanduser().resolve()
 
 
 def list_to_file(mylist, file_out):
@@ -142,6 +142,7 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
     """
 
     template = 'ogr2ogr -overwrite -f "PostgreSQL" PG:"{pg_con}" \
+        -lco OVERWRITE=YES \
         --config PG_USE_COPY YES \
         -nlt PROMOTE_TO_MULTI \
         -nln {table_name} \
@@ -150,43 +151,6 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
                           gpkg=gpkg, target_gpkg_table=target_gpkg_table)
 
     return cmd
-
-
-def import_gpkg(pg_con, gpkg):
-    """Execute ogr2ogr commands importing all tables from geopackage with renamed tables
-
-    Args:
-        pg_con (str): gdal postgres driver connection string, see https://gdal.org/drivers/vector/pg.html
-        gpkg (Path): geopackage file
-
-    Returns:
-        list: list of newly created/replaced postgres table names in schema.table form
-    """
-
-    gpkg_meta = extract_gpkg_meta(gpkg)
-    cmds = []
-    postgres_tables = []
-
-    if gpkg_meta['is_output']:
-        for mo in gpkg_meta['tables']:
-            pg_table_name = '{}."{}_{}_{}"'.format(
-                gpkg_meta['geography'], mo.lower(), gpkg_meta['model_short'], gpkg_meta['resolution'])
-            postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo)
-            cmds.append(cmd)
-    else:
-        for su in gpkg_meta['tables']:
-            pg_table_name = '{}."{}_{}"'.format(
-                gpkg_meta['geography'], su.lower(), gpkg_meta['resolution'])
-            postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, su)
-            cmds.append(cmd)
-
-    for cmd, pg in zip(cmds, postgres_tables):
-        sp.run(shlex.split(cmd))  # split preserving quoted strings
-        print(pg)
-
-    return postgres_tables, gpkg_meta
 
 
 def group_geography_vs_model(table_names):
@@ -205,6 +169,55 @@ def group_geography_vs_model(table_names):
             model_out.append(t)
     
     return geography, model_out
+
+
+def import_gpkg(pg_con, gpkg):
+    """Execute ogr2ogr commands importing all tables from geopackage with renamed tables
+
+    Args:
+        pg_con (str): gdal postgres driver connection string, see https://gdal.org/drivers/vector/pg.html
+        gpkg (Path): geopackage file
+
+    Returns:
+        list: list of newly created/replaced postgres table names in schema.table form
+    """
+
+    gpkg_meta = extract_gpkg_meta(gpkg)
+    cmds = []
+    postgres_tables = []
+
+    if gpkg_meta['is_output']:
+
+        # model output geopackages can/do contain embedded geography tables as well
+        geography_tables, model_tables = group_geography_vs_model(gpkg_meta['tables'])
+        for mo in model_tables:
+            pg_table_name = '{}."{}_{}_{}"'.format(
+                gpkg_meta['geography'], mo.lower(), gpkg_meta['model_short'], gpkg_meta['resolution'])
+            postgres_tables.append(pg_table_name)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo)
+            cmds.append(cmd)
+        for geo in geography_tables:
+            pg_table_name = '{}."{}_{}"'.format(
+                gpkg_meta['geography'], geo.lower(), gpkg_meta['resolution'])
+            postgres_tables.append(pg_table_name)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo)
+            cmds.append(cmd)
+    else:
+        for su in gpkg_meta['tables']:
+            pg_table_name = '{}."{}_{}"'.format(
+                gpkg_meta['geography'], su.lower(), gpkg_meta['resolution'])
+            postgres_tables.append(pg_table_name)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, su)
+            cmds.append(cmd)
+
+    for cmd, pg in zip(cmds, postgres_tables):
+        sp.run(shlex.split(cmd))  # split preserving quoted strings
+        print(pg)
+
+    return postgres_tables, gpkg_meta
+
+
+
 
 def clean_tablenames(table_names):
     """Deal with table names with/without embedded schema names. Assumes lists of tables will be self consistent.
