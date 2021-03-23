@@ -1,7 +1,7 @@
 """Dynamic sql generation for creating verbose tables / views"""
 
-GROUP1 = {'hunits': ('hydrostn30_confluence', 'hydrostn30_mouth', 'grandv13hydrostn30_dam'),
-          'outputs': ('discharge', 'riverwidth', 'riverdepth')}
+GROUP1 = {'hunits': ('hydrostn30_confluence', 'hydrostn30_mouth', 'grandv13hydrostn30_dam', 'river_mouth'),
+          'outputs': ('discharge', 'riverwidth', 'riverdepth', 'bedloadflux', 'sedimentflux')}
 GROUP2 = {'hunits': ('hydrostn30_basin', 'hydrostn30_subbasin', 'faogaul_country', 'faogaul_state'),
           'outputs': ('evapotranspiration', 'soilmoisture', 'relativesoilmoisture',
                       'rainpet', 'snowpack', 'runoff')}
