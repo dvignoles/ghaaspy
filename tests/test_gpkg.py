@@ -87,13 +87,17 @@ class TestGpkg(unittest.TestCase):
         self.assertEqual(len(ghaas_mod), 66, "Should be 10 tables model output")
 
     def test_clean_tablenames(self):
-        schema_group1 = ['"schema".my_table_1','"schema".my_table_2','"schema".my_table_3']
-        schema_group2 = ['schema.my_table_1','schema.my_table_2','schema.my_table_3']
+        schema_group1 = ['"schema1".my_table_1','"schema1".my_table_2','"schema1".my_table_3']
+        schema_group2 = ['schema2.my_table_1','schema2.my_table_2','schema2.my_table_3']
+        schema_group3 = ['"schema3"."my_table_1"','"schema3"."my_table_2"','"schema3"."my_table_3"']
         tables_only = ['my_table_1','my_table_2','my_table_3']
+        tables_only_quoted = ['"my_table_1"','"my_table_2"','"my_table_3"']
 
-        self.assertEqual(clean_tablenames(schema_group1), ('schema', tables_only), "should return 'schema' and [tablenames]")
-        self.assertEqual(clean_tablenames(schema_group2), ('schema', tables_only), "should return 'schema' and [tablenames]")
+        self.assertEqual(clean_tablenames(schema_group1), ('schema1', tables_only), "should return 'schema1' and [tablenames]")
+        self.assertEqual(clean_tablenames(schema_group2), ('schema2', tables_only), "should return 'schema2' and [tablenames]")
+        self.assertEqual(clean_tablenames(schema_group3), ('schema3', tables_only), "should return 'schema3' and [tablenames]")
         self.assertEqual(clean_tablenames(tables_only), (None, tables_only), "should return None and [tablenames]")
+        self.assertEqual(clean_tablenames(tables_only_quoted), (None, tables_only), "should return None and [tablenames]")
 
 
     def test_group_annual_monthly(self):
