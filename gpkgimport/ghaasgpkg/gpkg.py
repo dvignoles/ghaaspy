@@ -72,7 +72,6 @@ def extract_tables(gpkg):
         Generator: Generator of table names
     """
     import sqlite3
-    print(gpkg)
     conn = sqlite3.connect(gpkg)                                
     cursor = conn.cursor()
 
@@ -190,27 +189,71 @@ def import_gpkg(pg_con, gpkg):
     return postgres_tables, gpkg_meta
 
 
-def _group_annual_monthly(table_names):
-    """Convert a list of table names to a dictionary grouping together annual and monthly tables
+def group_geography_vs_model(table_names):
+    """Separate list of tablenames into two separate lists: models outputs vs geography tables
+
+    Args:
+        table_names (list): list of table names
+    """
+    geography = []
+    model_out = []
+
+    for t in table_names:
+        if any(map(t.lower().__contains__, ['hydrostn','faogaul'])):
+            geography.append(t)
+        else:
+            model_out.append(t)
+    
+    return geography, model_out
+
+def clean_tablenames(table_names):
+    """Deal with table names with/without embedded schema names. Assumes lists of tables will be self consistent.
+
+    Args:
+        table_names ([type]): list of table names
+    
+    Returns:
+        schema (str): unquoted name of embedded schema or None
+        table_names (list of str): table_names w/out embedded schemas
+
+    """
+    import re 
+
+    # check first table name for schema
+    if re.match(r'^(\w+|\"\w+\")\.(\w|-)+$', table_names[0]):
+        schema = table_names[0].split('.')[0].replace('"','')
+        tables_clean = [t.split('.')[1] for t in table_names]
+        return schema, tables_clean
+    else:
+        return None, table_names
+
+def group_annual_monthly(table_names):
+    """Convert a list of table names to a dictionary grouping together annual and monthly tables. Keys are
+    the table names (lowercase) without the embedded annual/monthly/daily.
 
     Args:
         table_names (dict): dictionary of tablenames
     """
 
     def group_temporal(x):
-        parts = x.split('.')[1].split('_')
-        exclude_temporal = [x for i,x in enumerate(parts) if i != 2]
-        return '_'.join(exclude_temporal)
+        
+        # remove temporal quanitifier from table name
+        x_short = x.lower().replace('annual','')
+        x_short = x_short.replace('monthly','')
+        x_short = x_short.replace('daily','')
+        x_short = x_short.replace('__','_')
+        if x_short.endswith('_'):
+            x_short = x_short[:-1]
+
+        return x_short
 
     annual_monthly = dict()
     temporal_grouped = itertools.groupby(table_names, group_temporal)
     for key, group in temporal_grouped:
-        tables = list(map(lambda x: x.split('.')[1].replace('"',''), group))
-        key_strip = key.replace('"','')
         if key not in annual_monthly:
-            annual_monthly[key_strip] = tables
+            annual_monthly[key] = set(group)
         else: 
-            annual_monthly[key_strip] += tables
+            annual_monthly[key] = annual_monthly[key].union(set(group))
     return annual_monthly
 
 def create_pivot_tables(table_names, output_file):
