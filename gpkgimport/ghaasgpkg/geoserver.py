@@ -5,6 +5,11 @@ def connect_geoserver(geoserver_url, user, password):
 
 def publish_geoserver_sqlview(geo, view_name, store_name, workspace, geography=False):
     sql = 'SELECT * FROM {}'.format(view_name)
+
+    # handle faogaul_country / state -9999 admin null rows
+    if 'faogaul_country' in view_name or 'faogaul_state' in view_name:
+        sql += (' where gridvalue != -9999')
+    
     name = view_name.split('.')[1].replace('+','-').replace('"','')
 
     # geography tables PK distinction
