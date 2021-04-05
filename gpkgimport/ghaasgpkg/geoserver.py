@@ -7,8 +7,8 @@ def publish_geoserver_sqlview(geo, view_name, store_name, workspace, geography=F
     sql = 'SELECT * FROM {}'.format(view_name)
 
     # handle faogaul_country / state -9999 admin null rows
-    if 'faogaul_country' in view_name or 'faogaul_state' in view_name:
-        sql += (' where gridvalue != -9999')
+    if '_country_' in view_name or '_state_' in view_name:
+        sql += (' WHERE geom is not NULL')
     
     name = view_name.split('.')[1].replace('+','-').replace('"','')
 

@@ -1,4 +1,4 @@
-from .ghaasgpkg.gpkg import import_gpkg, create_pivot_tables, sanitize_path, list_to_file
+from .ghaasgpkg.gpkg import import_gpkg, sanitize_path, list_to_file
 import argparse
 from pathlib import Path
 
