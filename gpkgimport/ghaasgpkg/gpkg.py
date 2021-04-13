@@ -6,6 +6,7 @@ import subprocess as sp
 import shlex
 
 from .sqlgen import group1_create_pivot, group2_create_pivot, GROUP1, GROUP2, group1_create_yearly_views, group2_create_yearly_views
+from .postgres import PostgresDB
 import itertools 
 
 
@@ -142,6 +143,7 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
     """
 
     template = 'ogr2ogr -overwrite -f "PostgreSQL" PG:"{pg_con}" \
+        -lco OVERWRITE=YES \
         --config PG_USE_COPY YES \
         -nlt PROMOTE_TO_MULTI \
         -nln {table_name} \
@@ -150,6 +152,24 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
                           gpkg=gpkg, target_gpkg_table=target_gpkg_table)
 
     return cmd
+
+
+def group_geography_vs_model(table_names):
+    """Separate list of tablenames into two separate lists: models outputs vs geography tables
+
+    Args:
+        table_names (list): list of table names
+    """
+    geography = []
+    model_out = []
+
+    for t in table_names:
+        if any(map(t.lower().__contains__, ['hydrostn','faogaul'])):
+            geography.append(t)
+        else:
+            model_out.append(t)
+    
+    return geography, model_out
 
 
 def import_gpkg(pg_con, gpkg):
@@ -167,12 +187,31 @@ def import_gpkg(pg_con, gpkg):
     cmds = []
     postgres_tables = []
 
+    def _clean_pg_tablename(t):
+        # for some reason hyphens show up as underscores in postgres after the ogr2ogr import
+        # No idea why, just going to remove at least for now
+        return t.replace('-','')
+
     if gpkg_meta['is_output']:
-        for mo in gpkg_meta['tables']:
-            pg_table_name = '{}."{}_{}_{}"'.format(
-                gpkg_meta['geography'], mo.lower(), gpkg_meta['model_short'], gpkg_meta['resolution'])
+
+        # model output geopackages can/do contain embedded geography tables as well
+        geography_tables, model_tables = group_geography_vs_model(gpkg_meta['tables'])
+        for mo in model_tables:
+            schema = '"{}"'.format(gpkg_meta['geography'])
+
+            table_name = _clean_pg_tablename('"{}_{}_{}"'.format(
+                mo.lower(), gpkg_meta['model_short'], gpkg_meta['resolution']))
+            
+            pg_table_name = ".".join([schema, table_name])
+
             postgres_tables.append(pg_table_name)
             cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo)
+            cmds.append(cmd)
+        for geo in geography_tables:
+            pg_table_name = '{}."{}_{}"'.format(
+                gpkg_meta['geography'], geo.lower(), gpkg_meta['resolution'])
+            postgres_tables.append(pg_table_name)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo)
             cmds.append(cmd)
     else:
         for su in gpkg_meta['tables']:
@@ -189,30 +228,89 @@ def import_gpkg(pg_con, gpkg):
     return postgres_tables, gpkg_meta
 
 
-def _group_annual_monthly(table_names):
-    """Convert a list of table names to a dictionary grouping together annual and monthly tables
+
+
+def clean_tablenames(table_names):
+    """Deal with table names with/without embedded schema names. Assumes lists of tables will be self consistent.
+
+    Args:
+        table_names ([type]): list of table names
+    
+    Returns:
+        schema (str): unquoted name of embedded schema or None
+        table_names (list of str): table_names w/out embedded schemas
+
+    """
+    import re 
+
+    def _remove_embedded_quotes(t):
+        if t.startswith('"'):
+            t = t[1:]
+        if t.endswith('"'):
+            t = t[:-1]
+        return t
+
+    # check first table name for schema
+    if re.match(r'^"?((\w|-)+|\"(\w|-)+\")"?\."?(\w|-|\+)+"?$', table_names[0]):
+        schema = table_names[0].split('.')[0].replace('"','')
+        tables_clean = [_remove_embedded_quotes(t.split('.')[1]) for t in table_names]
+        return schema, tables_clean
+    else:
+        return None, [_remove_embedded_quotes(t) for t in table_names]
+
+def group_annual_monthly(table_names):
+    """Convert a list of table names to a dictionary grouping together annual and monthly tables. Keys are
+    the table names (lowercase) without the embedded annual/monthly/daily.
 
     Args:
         table_names (dict): dictionary of tablenames
     """
 
     def group_temporal(x):
-        parts = x.split('.')[1].split('_')
-        exclude_temporal = [x for i,x in enumerate(parts) if i != 2]
-        return '_'.join(exclude_temporal)
+        
+        # remove temporal quanitifier from table name
+        x_short = x.lower().replace('annual','')
+        x_short = x_short.replace('monthly','')
+        x_short = x_short.replace('daily','')
+        x_short = x_short.replace('__','_')
+        if x_short.endswith('_'):
+            x_short = x_short[:-1]
+
+        return x_short
 
     annual_monthly = dict()
     temporal_grouped = itertools.groupby(table_names, group_temporal)
     for key, group in temporal_grouped:
-        tables = list(map(lambda x: x.split('.')[1].replace('"',''), group))
-        key_strip = key.replace('"','')
         if key not in annual_monthly:
-            annual_monthly[key_strip] = tables
+            annual_monthly[key] = set(group)
         else: 
-            annual_monthly[key_strip] += tables
+            annual_monthly[key] = annual_monthly[key].union(set(group))
     return annual_monthly
 
-def create_pivot_tables(table_names, output_file):
+def sift_temporal_group(table_group):
+    """Returns a dict of tables key'd by their temporal identifier from a unordered set of tables
+
+    Args:
+        table_group (set): set of tables grouped together as annual/monthly/daily variants
+    
+    Returns:
+        table_group_dict (dict): {'annual': annual_table, 'monthly':monthly_table, 'daily': daily_table OR None}
+    """
+    table_group_dict = {'annual':None, 'monthly': None, 'daily': None}
+    assert(len(table_group) <= 3)
+    for t in table_group:
+        if 'annual' in t:
+            table_group_dict['annual'] = t
+        elif 'monthly' in t:
+            table_group_dict['monthly'] = t
+        elif 'daily' in t:
+            table_group_dict['daily'] = t
+    
+    return table_group_dict
+
+
+
+def create_pivot_annual_monthly_tables(table_names, output_file, year_start=1958, year_end=2019):
     """Write sql to file generating pivot tables and accompanying yearly views for a list of postgres tables generated through import_gpkg
 
     Args:
@@ -223,8 +321,10 @@ def create_pivot_tables(table_names, output_file):
         pivot_tablenames, view_names_all: lists of tables/views generated by function
     """
     
+    geography, model_tables = group_geography_vs_model(table_names)
+    schema, tables_names_short = clean_tablenames(model_tables)
     # group together annual/monthly table pairs
-    annual_monthly = _group_annual_monthly(table_names)
+    annual_monthly = group_annual_monthly(tables_names_short)
 
     # lists of all pivot tables and views created
     pivot_tablenames = []
@@ -234,15 +334,12 @@ def create_pivot_tables(table_names, output_file):
         for key, component_tables in annual_monthly.items(): 
             pivot_tablename = key+'_pivot' 
             pivot_tablenames.append(pivot_tablename)
-            # account for list ordering
-            annual_pos = 0
-            monthly_pos = 1
-            if 'monthly' in component_tables[0]:
-                annual_pos = 1
-                monthly_pos = 0
+            
+            temporal_group = sift_temporal_group(component_tables)
+            annual = temporal_group['annual']
+            monthly = temporal_group['monthly']
 
-            # extract schema and output name 
-            schema = table_names[0].split('.')[0]
+            # extract output name 
             output = key.split('_')[0]
 
             table_sql = ""
@@ -250,12 +347,12 @@ def create_pivot_tables(table_names, output_file):
 
             # call appropriate sql gen function for group1/group2 outputs
             if output in GROUP1['outputs']:
-                table_sql = group1_create_pivot(schema, output, component_tables[monthly_pos], component_tables[annual_pos], pivot_tablename)
-                view_sql,view_names = group1_create_yearly_views(schema, pivot_tablename)
+                table_sql = group1_create_pivot(schema, output, monthly, annual, pivot_tablename, year_start=year_start, year_end=year_end)
+                view_sql,view_names = group1_create_yearly_views(schema, pivot_tablename, year_start=year_start, year_end=year_end)
                 view_names_all += view_names
             else:
-                table_sql = group2_create_pivot(schema, output, component_tables[monthly_pos], component_tables[annual_pos], pivot_tablename)
-                view_sql,view_names = group2_create_yearly_views(schema, pivot_tablename)
+                table_sql = group2_create_pivot(schema, output, monthly, annual, pivot_tablename, year_start=year_start, year_end=year_end)
+                view_sql,view_names = group2_create_yearly_views(schema, pivot_tablename, year_start=year_start, year_end=year_end)
                 view_names_all += view_names
 
             f.write(table_sql)

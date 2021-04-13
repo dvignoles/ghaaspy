@@ -1,7 +1,7 @@
 """Dynamic sql generation for creating verbose tables / views"""
 
-GROUP1 = {'hunits': ('hydrostn30_confluence', 'hydrostn30_mouth', 'grandv13hydrostn30_dam'),
-          'outputs': ('discharge', 'riverwidth', 'riverdepth')}
+GROUP1 = {'hunits': ('hydrostn30_confluence', 'hydrostn30_mouth', 'grandv13hydrostn30_dam', 'rivermouth'),
+          'outputs': ('discharge', 'riverwidth', 'riverdepth', 'bedloadflux', 'sedimentflux')}
 GROUP2 = {'hunits': ('hydrostn30_basin', 'hydrostn30_subbasin', 'faogaul_country', 'faogaul_state'),
           'outputs': ('evapotranspiration', 'soilmoisture', 'relativesoilmoisture',
                       'rainpet', 'snowpack', 'runoff')}
@@ -52,33 +52,33 @@ def group1_create_pivot(schema, output, monthly_table, annual_table, pivot_table
     """
 
     GROUP1_TEMPLATE= """ 
-SET search_path={schema}, public;
+SET search_path="{schema}", public;
 
 CREATE TEMP TABLE aaa AS
 
-SELECT a.sampleid as sampleid, a.year as year, (annual_{output},monthly_{output})::model_output_annual_monthly as {output} FROM
-(SELECT sampleid, year, array_agg({output} ORDER BY month ASC) as monthly_{output}
-FROM "{monthly_table}"
+SELECT a.sampleid as sampleid, a.year as year, ("annual_{output}","monthly_{output}")::model_output_annual_monthly as "{output}" FROM
+(SELECT sampleid, year, array_agg("{output}" ORDER BY month ASC) as "monthly_{output}"
+FROM "{schema}"."{monthly_table}"
 GROUP BY sampleid,year) a
 INNER JOIN
-(SELECT sampleid, year, {output} as annual_{output}
-    FROM "{annual_table}"
+(SELECT sampleid, year, "{output}" as "annual_{output}"
+    FROM "{schema}"."{annual_table}"
     ) b
 ON a.sampleid=b.sampleid AND a.year = b.year
 ORDER BY sampleid, year;
 
-DROP TABLE IF EXISTS {schema}."{pivot_table_name}";
-CREATE TABLE {schema}."{pivot_table_name}" AS
+DROP TABLE IF EXISTS "{schema}"."{pivot_table_name}";
+CREATE TABLE "{schema}"."{pivot_table_name}" AS
 	SELECT ct.sampleid,
        {pivot_table_columns}
-FROM crosstab('SELECT sampleid, year, {output}
+FROM crosstab('SELECT sampleid, year, "{output}"
         FROM aaa
         ORDER BY sampleid'::text, 
         '{sel_years}'::text) ct(sampleid bigint,  {crosstab_columns});
 
 DROP TABLE aaa;
 
-ALTER TABLE {schema}."{pivot_table_name}" ADD PRIMARY KEY (sampleid);
+ALTER TABLE "{schema}"."{pivot_table_name}" ADD PRIMARY KEY (sampleid);
 
 -- DROP monthly/annual tables
 """
@@ -118,13 +118,13 @@ CREATE OR REPLACE VIEW "{view_name}" AS
 SELECT sampleid, 
         {unpack_columns}
         hstn.*
-FROM "{pivot_table_name}"
+FROM "{schema}"."{pivot_table_name}"
 INNER JOIN {hunit_table} hstn on sampleid=hstn.id
 ORDER BY sampleid;
 """
     def _unpack_columns(output, year):
-        annual_template = "({output}_{year}).annual as {output}_{year}_annual,"
-        monthly_template = "({output}_{year}).monthly[{month_num}] as {output}_{year}_{month_num_zeropad},"
+        annual_template = "(\"{output}_{year}\").annual as \"{output}_{year}_annual\","
+        monthly_template = "(\"{output}_{year}\").monthly[{month_num}] as \"{output}_{year}_{month_num_zeropad}\","
 
         cols = [annual_template.format(output=output, year=year),]
         for i in range(1,13):
@@ -133,11 +133,11 @@ ORDER BY sampleid;
         
         return "\n".join(cols)
     
-    sql = ["SET search_path={}, public;".format(schema),]
+    sql = ['SET search_path="{}", public;'.format(schema),]
     view_names_full = []
     for y in range(year_start, year_end + 1):
         view_name = pivot_table_name.replace('pivot',str(y))
-        view_names_full.append('{}."{}"'.format(schema,view_name))
+        view_names_full.append('"{}"."{}"'.format(schema,view_name))
         
         unp_cols = _unpack_columns(output, y)
 
@@ -163,7 +163,7 @@ def group2_create_pivot(schema, output, monthly_table, annual_table, pivot_table
     """
 
     GROUP2_TEMPLATE="""
-SET search_path={schema}, public;
+SET search_path="{schema}", public;
 
 CREATE TEMP TABLE bbb AS
 SELECT a.sampleid as sampleid, a.year as year, (annual_zonalmean, annual_zonalmin, annual_zonalmax, monthly_zonalmean,
@@ -171,17 +171,17 @@ SELECT a.sampleid as sampleid, a.year as year, (annual_zonalmean, annual_zonalmi
 (SELECT sampleid, year, array_agg(zonalmean ORDER BY month ASC) as monthly_zonalmean,
         array_agg(zonalmin ORDER BY month ASC) as monthly_zonalmin,
         array_agg(zonalmax ORDER BY month ASC) as monthly_zonalmax
-FROM "{monthly_table}"
+FROM "{schema}"."{monthly_table}"
 GROUP BY sampleid,year) a
 INNER JOIN
 (SELECT sampleid, year, zonalmean as annual_zonalmean, zonalmin as annual_zonalmin, zonalmax as annual_zonalmax
-    FROM "{annual_table}"
+    FROM "{schema}"."{annual_table}"
     ) b
 ON a.sampleid=b.sampleid AND a.year = b.year
 ORDER BY sampleid, year;
 
-DROP TABLE IF EXISTS {schema}."{pivot_table_name}";
-CREATE TABLE {schema}."{pivot_table_name}" AS
+DROP TABLE IF EXISTS "{schema}"."{pivot_table_name}";
+CREATE TABLE "{schema}"."{pivot_table_name}" AS
 	SELECT ct.sampleid,
        {pivot_table_columns}
 FROM crosstab('SELECT sampleid, year, zonal_output
@@ -191,7 +191,7 @@ FROM crosstab('SELECT sampleid, year, zonal_output
 
 DROP TABLE bbb;
 
-ALTER TABLE {schema}."{pivot_table_name}" ADD PRIMARY KEY (sampleid);
+ALTER TABLE "{schema}"."{pivot_table_name}" ADD PRIMARY KEY (sampleid);
 
 -- DROP monthly/annual tables
 """
@@ -230,15 +230,15 @@ CREATE OR REPLACE VIEW "{view_name}" AS
 SELECT sampleid, 
         {unpack_columns}
         hstn.*
-FROM "{pivot_table_name}"
+FROM "{schema}"."{pivot_table_name}"
 INNER JOIN {hunit_table} hstn on sampleid=hstn.id
 ORDER BY sampleid;
 """
     def _unpack_columns(output, year):
         zonal_aggregations = ['zonalmean', 'zonalmin', 'zonalmax']
 
-        annual_template = "({output}_{year}).annual_{zonal_agg} as {output}_{year}_annual_{zonal_agg},"
-        monthly_template = "({output}_{year}).monthly_{zonal_agg}[{month_num}] as {output}_{year}_{month_num_zeropad}_{zonal_agg},"
+        annual_template = "(\"{output}_{year}\").annual_{zonal_agg} as \"{output}_{year}_annual_{zonal_agg}\","
+        monthly_template = "(\"{output}_{year}\").monthly_{zonal_agg}[{month_num}] as \"{output}_{year}_{month_num_zeropad}_{zonal_agg}\","
 
         cols = []
         for z in zonal_aggregations:
@@ -249,11 +249,11 @@ ORDER BY sampleid;
         
         return "\n".join(cols)
     
-    sql = ["SET search_path={}, public;".format(schema),]
+    sql = ['SET search_path="{}", public;'.format(schema),]
     view_names_full = []
     for y in range(year_start, year_end + 1):
         view_name = pivot_table_name.replace('pivot',str(y))
-        view_names_full.append('{}."{}"'.format(schema,view_name))
+        view_names_full.append('"{}"."{}"'.format(schema,view_name))
         
         unp_cols = _unpack_columns(output, y)
 
