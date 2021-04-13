@@ -86,4 +86,4 @@ class PostgresDB:
         Returns:
             [type]: [description]
         """
-        return '"dbname={} host={} port={} user={} password={}"'.format(self.database, self.host, self.port, self.user, self.password)
+        return "dbname={} host={} port={} user={} password={}".format(self.database, self.host, self.port, self.user, self.password)
