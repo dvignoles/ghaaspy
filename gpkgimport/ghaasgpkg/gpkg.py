@@ -187,13 +187,15 @@ def group_geography_vs_model(table_names):
     return geography, model_out
 
 
-def import_gpkg(pg_con, gpkg, update=False):
+def import_gpkg(pg_con, gpkg, update=False, include_embedded_geography_tables=False):
     """Execute ogr2ogr commands importing all tables from geopackage with renamed tables
 
     Args:
         pg_con (str): gdal postgres driver connection string, see https://gdal.org/drivers/vector/pg.html
         gpkg (Path): geopackage file
         update (bool, optional): try to trunacate then append to table, rather than overwriting by default
+        include_embedded_geography_tables (bool, optional): In the case of a model output geopackage, import embedded geography tables (hydrostn, faogaul..)
+            as well as model tables. There are separate geopackages with just the geography, these are more likely to be up to date. 
 
     Returns:
         list: list of newly created/replaced postgres table names in schema.table form
@@ -211,6 +213,7 @@ def import_gpkg(pg_con, gpkg, update=False):
     if gpkg_meta['is_output']:
 
         # model output geopackages can/do contain embedded geography tables as well
+        # we don't always want to import these as they may be out of date
         geography_tables, model_tables = group_geography_vs_model(gpkg_meta['tables'])
         for mo in model_tables:
             schema = '"{}"'.format(gpkg_meta['geography'])
@@ -223,12 +226,13 @@ def import_gpkg(pg_con, gpkg, update=False):
             postgres_tables.append(pg_table_name)
             cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo, update=update)
             cmds.append(cmd)
-        for geo in geography_tables:
-            pg_table_name = '{}."{}_{}"'.format(
-                gpkg_meta['geography'], geo.lower(), gpkg_meta['resolution'])
-            postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo, update=update)
-            cmds.append(cmd)
+        if include_embedded_geography_tables:
+            for geo in geography_tables:
+                pg_table_name = '{}."{}_{}"'.format(
+                    gpkg_meta['geography'], geo.lower(), gpkg_meta['resolution'])
+                postgres_tables.append(pg_table_name)
+                cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo, update=update)
+                cmds.append(cmd)
     else:
         for su in gpkg_meta['tables']:
             pg_table_name = '{}."{}_{}"'.format(

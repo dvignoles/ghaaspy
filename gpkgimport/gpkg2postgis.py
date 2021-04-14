@@ -15,7 +15,8 @@ def main():
     parser.add_argument('gpkg', type=Path,
                         help="GHAAS geopackage file or filepath")
     parser.add_argument('-t', '--tablenames', type=Path, help="file to write created table names to", required=False)
-    parser.add_argument('--update', action='store_true')
+    parser.add_argument('--update', action='store_true', help="update table (truncate , then append) instead of overwriting existing tables")
+    parser.add_argument('--include_geography', action='store_true', help="if importing a modeloutput geopackage, import embedded geography tables as well")
     args = parser.parse_args()
 
     if args.pg_con:
@@ -31,9 +32,15 @@ def main():
     gpkg = sanitize_path(args.gpkg)
 
     if args.update:
-        postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=True)
+        if args.include_geography:
+            postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=True, include_embedded_geography_tables=True)
+        else:
+            postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=True, include_embedded_geography_tables=False)
     else:
-        postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=False)
+        if args.include_geography:
+            postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=False, include_embedded_geography_tables=True)
+        else: 
+            postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=False, include_embedded_geography_tables=False)
 
     if args.tablenames:
         list_to_file(postgres_tables, args.tablenames)
