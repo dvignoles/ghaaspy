@@ -129,7 +129,7 @@ def extract_gpkg_meta(gpkg):
         return meta
 
 
-def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
+def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table, update=False):
     """Generate ogr2ogr command string
 
     Args:
@@ -137,21 +137,36 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table):
         gpkg (Path): geopackage file
         table_name (str): name of table to be created in postgres
         target_gpkg_table (str): name of table in geopackage to import
+        update (bool, optional): If True, will try to truncate then append to table rather than overwriting by default
 
     Returns:
         str: ogr2ogr command string
     """
 
-    template = 'ogr2ogr -overwrite -f "PostgreSQL" PG:"{pg_con}" \
+    template_create = 'ogr2ogr -overwrite -f "PostgreSQL" PG:"{pg_con}" \
         -lco OVERWRITE=YES \
         --config PG_USE_COPY YES \
         -nlt PROMOTE_TO_MULTI \
         -nln {table_name} \
         {gpkg} {target_gpkg_table}'
-    cmd = template.format(pg_con=pg_con, table_name=table_name,
-                          gpkg=gpkg, target_gpkg_table=target_gpkg_table)
 
-    return cmd
+    template_update = 'ogr2ogr -append -f "PostgreSQL" PG:"{pg_con}" \
+        --config PG_USE_COPY YES \
+        --config OGR_TRUNCATE YES \
+        -nlt PROMOTE_TO_MULTI \
+        -nln {table_name} \
+        {gpkg} {target_gpkg_table}'
+
+    if update:
+        cmd = template_update.format(pg_con=pg_con, table_name=table_name,
+                            gpkg=gpkg, target_gpkg_table=target_gpkg_table)
+        
+        return cmd
+    else:
+        cmd = template_create.format(pg_con=pg_con, table_name=table_name,
+                            gpkg=gpkg, target_gpkg_table=target_gpkg_table)
+
+        return cmd
 
 
 def group_geography_vs_model(table_names):
@@ -172,12 +187,13 @@ def group_geography_vs_model(table_names):
     return geography, model_out
 
 
-def import_gpkg(pg_con, gpkg):
+def import_gpkg(pg_con, gpkg, update=False):
     """Execute ogr2ogr commands importing all tables from geopackage with renamed tables
 
     Args:
         pg_con (str): gdal postgres driver connection string, see https://gdal.org/drivers/vector/pg.html
         gpkg (Path): geopackage file
+        update (bool, optional): try to trunacate then append to table, rather than overwriting by default
 
     Returns:
         list: list of newly created/replaced postgres table names in schema.table form
@@ -205,20 +221,20 @@ def import_gpkg(pg_con, gpkg):
             pg_table_name = ".".join([schema, table_name])
 
             postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, mo, update=update)
             cmds.append(cmd)
         for geo in geography_tables:
             pg_table_name = '{}."{}_{}"'.format(
                 gpkg_meta['geography'], geo.lower(), gpkg_meta['resolution'])
             postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, geo, update=update)
             cmds.append(cmd)
     else:
         for su in gpkg_meta['tables']:
             pg_table_name = '{}."{}_{}"'.format(
                 gpkg_meta['geography'], su.lower(), gpkg_meta['resolution'])
             postgres_tables.append(pg_table_name)
-            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, su)
+            cmd = _import_gpkg(pg_con, gpkg, pg_table_name, su, update=update)
             cmds.append(cmd)
 
     for cmd, pg in zip(cmds, postgres_tables):

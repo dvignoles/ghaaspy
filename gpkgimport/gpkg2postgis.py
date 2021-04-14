@@ -15,6 +15,7 @@ def main():
     parser.add_argument('gpkg', type=Path,
                         help="GHAAS geopackage file or filepath")
     parser.add_argument('-t', '--tablenames', type=Path, help="file to write created table names to", required=False)
+    parser.add_argument('--update', action='store_true')
     args = parser.parse_args()
 
     if args.pg_con:
@@ -28,7 +29,11 @@ def main():
 
     pg_con = db.get_gdal_string()
     gpkg = sanitize_path(args.gpkg)
-    postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg)
+
+    if args.update:
+        postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=True)
+    else:
+        postgres_tables, gpkg_meta = import_gpkg(pg_con, gpkg, update=False)
 
     if args.tablenames:
         list_to_file(postgres_tables, args.tablenames)
