@@ -1,5 +1,6 @@
 import unittest
-from gpkgimport.ghaasgpkg.gpkg import *
+from ghaaspy.gpkg import *
+from ghaaspy.util import *
 from pathlib import Path
 
 

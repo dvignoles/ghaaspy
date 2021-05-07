@@ -5,9 +5,7 @@ from pathlib import Path
 import subprocess as sp
 import shlex
 
-from .sqlgen import group1_create_pivot, group2_create_pivot, GROUP1, GROUP2, group1_create_yearly_views, group2_create_yearly_views
-from .postgres import PostgresDB
-import itertools 
+from .util import group_geography_vs_model
 
 
 def read_constants():
@@ -28,39 +26,6 @@ def read_constants():
 
 
 MODEL_OUTPUTS, SPATIAL_UNITS, MODEL_SHORTNAMES = read_constants()
-
-
-def sanitize_path(p):
-    """Make arbitrary path object into absolute path
-
-    Args:
-        p (Path): Any Path
-
-    Returns:
-        Path: Absolute Path object
-    """
-    return p.expanduser().resolve()
-
-
-def list_to_file(mylist, file_out):
-    """Write a list of 'names' to a file, one name per line
-
-    Args:
-        mylist (list): list of name strings to
-        file_out (Path): output file to write to
-    """
-    file_out_path = sanitize_path(file_out)
-    with open(file_out_path,'w') as f:
-        for p in mylist:
-            f.write(p)
-            f.write('\n')
-
-
-def file_to_list(file_in):
-    with open(file_in, 'r') as f:
-        tables_raw = f.readlines()
-        tables = [x.strip() for x in tables_raw] 
-        return tables
 
 
 def extract_tables(gpkg):
@@ -169,24 +134,6 @@ def _import_gpkg(pg_con, gpkg, table_name, target_gpkg_table, update=False):
         return cmd
 
 
-def group_geography_vs_model(table_names):
-    """Separate list of tablenames into two separate lists: models outputs vs geography tables
-
-    Args:
-        table_names (list): list of table names
-    """
-    geography = []
-    model_out = []
-
-    for t in table_names:
-        if any(map(t.lower().__contains__, ['hydrostn','faogaul'])):
-            geography.append(t)
-        else:
-            model_out.append(t)
-    
-    return geography, model_out
-
-
 def import_gpkg(pg_con, gpkg, update=False, include_embedded_geography_tables=False):
     """Execute ogr2ogr commands importing all tables from geopackage with renamed tables
 
@@ -249,133 +196,3 @@ def import_gpkg(pg_con, gpkg, update=False, include_embedded_geography_tables=Fa
 
 
 
-
-def clean_tablenames(table_names):
-    """Deal with table names with/without embedded schema names. Assumes lists of tables will be self consistent.
-
-    Args:
-        table_names ([type]): list of table names
-    
-    Returns:
-        schema (str): unquoted name of embedded schema or None
-        table_names (list of str): table_names w/out embedded schemas
-
-    """
-    import re 
-
-    def _remove_embedded_quotes(t):
-        if t.startswith('"'):
-            t = t[1:]
-        if t.endswith('"'):
-            t = t[:-1]
-        return t
-
-    # check first table name for schema
-    if re.match(r'^"?((\w|-)+|\"(\w|-)+\")"?\."?(\w|-|\+)+"?$', table_names[0]):
-        schema = table_names[0].split('.')[0].replace('"','')
-        tables_clean = [_remove_embedded_quotes(t.split('.')[1]) for t in table_names]
-        return schema, tables_clean
-    else:
-        return None, [_remove_embedded_quotes(t) for t in table_names]
-
-def group_annual_monthly(table_names):
-    """Convert a list of table names to a dictionary grouping together annual and monthly tables. Keys are
-    the table names (lowercase) without the embedded annual/monthly/daily.
-
-    Args:
-        table_names (dict): dictionary of tablenames
-    """
-
-    def group_temporal(x):
-        
-        # remove temporal quanitifier from table name
-        x_short = x.lower().replace('annual','')
-        x_short = x_short.replace('monthly','')
-        x_short = x_short.replace('daily','')
-        x_short = x_short.replace('__','_')
-        if x_short.endswith('_'):
-            x_short = x_short[:-1]
-
-        return x_short
-
-    annual_monthly = dict()
-    temporal_grouped = itertools.groupby(table_names, group_temporal)
-    for key, group in temporal_grouped:
-        if key not in annual_monthly:
-            annual_monthly[key] = set(group)
-        else: 
-            annual_monthly[key] = annual_monthly[key].union(set(group))
-    return annual_monthly
-
-def sift_temporal_group(table_group):
-    """Returns a dict of tables key'd by their temporal identifier from a unordered set of tables
-
-    Args:
-        table_group (set): set of tables grouped together as annual/monthly/daily variants
-    
-    Returns:
-        table_group_dict (dict): {'annual': annual_table, 'monthly':monthly_table, 'daily': daily_table OR None}
-    """
-    table_group_dict = {'annual':None, 'monthly': None, 'daily': None}
-    assert(len(table_group) <= 3)
-    for t in table_group:
-        if 'annual' in t:
-            table_group_dict['annual'] = t
-        elif 'monthly' in t:
-            table_group_dict['monthly'] = t
-        elif 'daily' in t:
-            table_group_dict['daily'] = t
-    
-    return table_group_dict
-
-
-
-def create_pivot_annual_monthly_tables(table_names, output_file, year_start=1958, year_end=2019):
-    """Write sql to file generating pivot tables and accompanying yearly views for a list of postgres tables generated through import_gpkg
-
-    Args:
-        table_names (list): postgres table names prefexed with schema ie schema."my-table_name"
-        output_file (Path): output file to write sql to
-
-    Returns:
-        pivot_tablenames, view_names_all: lists of tables/views generated by function
-    """
-    
-    geography, model_tables = group_geography_vs_model(table_names)
-    schema, tables_names_short = clean_tablenames(model_tables)
-    # group together annual/monthly table pairs
-    annual_monthly = group_annual_monthly(tables_names_short)
-
-    # lists of all pivot tables and views created
-    pivot_tablenames = []
-    view_names_all = []
-
-    with open(output_file, 'w') as f:
-        for key, component_tables in annual_monthly.items(): 
-            pivot_tablename = key+'_pivot' 
-            pivot_tablenames.append(pivot_tablename)
-            
-            temporal_group = sift_temporal_group(component_tables)
-            annual = temporal_group['annual']
-            monthly = temporal_group['monthly']
-
-            # extract output name 
-            output = key.split('_')[0]
-
-            table_sql = ""
-            view_sql = ""
-
-            # call appropriate sql gen function for group1/group2 outputs
-            if output in GROUP1['outputs']:
-                table_sql = group1_create_pivot(schema, output, monthly, annual, pivot_tablename, year_start=year_start, year_end=year_end)
-                view_sql,view_names = group1_create_yearly_views(schema, pivot_tablename, year_start=year_start, year_end=year_end)
-                view_names_all += view_names
-            else:
-                table_sql = group2_create_pivot(schema, output, monthly, annual, pivot_tablename, year_start=year_start, year_end=year_end)
-                view_sql,view_names = group2_create_yearly_views(schema, pivot_tablename, year_start=year_start, year_end=year_end)
-                view_names_all += view_names
-
-            f.write(table_sql)
-            f.write(view_sql)
-
-    return pivot_tablenames, view_names_all

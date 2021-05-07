@@ -1,6 +1,9 @@
-from .ghaasgpkg.gpkg import sanitize_path, list_to_file, create_pivot_annual_monthly_tables
+
 import argparse
 from pathlib import Path
+
+from ..pivot import create_pivot_annual_monthly_tables
+from ..util import sanitize_path, list_to_file
 
 def main():
     parser = argparse.ArgumentParser()

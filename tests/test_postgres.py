@@ -1,5 +1,5 @@
 import unittest
-from gpkgimport.ghaasgpkg.postgres import PostgresDB
+from ghaaspy.postgres import PostgresDB
 from pathlib import Path
 
 class TestPostgres(unittest.TestCase):
