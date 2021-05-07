@@ -1,3 +1,5 @@
+"""Utility Functions"""
+
 def sanitize_path(p):
     """Make arbitrary path object into absolute path
 

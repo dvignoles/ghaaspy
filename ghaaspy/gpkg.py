@@ -1,9 +1,9 @@
-"""Import ghaas geopackage to postgis database
-"""
+"""Geopackage manipulation and import to PostGIS"""
 
 from pathlib import Path
 import subprocess as sp
 import shlex
+import pkg_resources
 
 from .util import group_geography_vs_model
 
@@ -14,14 +14,23 @@ def read_constants():
     Returns:
         tuple, tuple, dict
     """
-    this_dir = Path(__file__).parent.resolve()
-    with open(this_dir.joinpath('ghaas_modeloutputs.txt'), 'r') as mf:
-        MODEL_OUTPUTS = tuple(mf.read().splitlines())
-    with open(this_dir.joinpath('ghaas_spatialunits.txt'), 'r') as sf:
-        SPATIAL_UNITS = tuple(sf.read().splitlines())
-    with open(this_dir.joinpath('ghaas_model_shortnames.txt'), 'r') as msnf:
-        MODEL_SHORTNAMES_raw = [n.split('=') for n in msnf.read().splitlines()]
-        MODEL_SHORTNAMES = {k: v for k, v in MODEL_SHORTNAMES_raw}
+
+    model_outputs_file = pkg_resources.resource_stream(__name__, "package_data/ghaas_modeloutputs.txt")
+    spatialunits_file = pkg_resources.resource_stream(__name__, "package_data/ghaas_spatialunits.txt")
+    model_shortnames_file = pkg_resources.resource_stream(__name__, "package_data/ghaas_model_shortnames.txt")
+
+    model_outputs_file.read().decode().splitlines()
+
+    MODEL_OUTPUTS = tuple(model_outputs_file.read().decode().splitlines())
+    SPATIAL_UNITS = tuple(spatialunits_file.read().decode().splitlines())
+
+    MODEL_SHORTNAMES_raw = [n.split('=') for n in    model_shortnames_file.read().decode().splitlines()]
+    MODEL_SHORTNAMES = {k: v for k, v in MODEL_SHORTNAMES_raw}
+
+    model_outputs_file.close()
+    spatialunits_file.close()
+    model_shortnames_file.close()
+
     return MODEL_OUTPUTS, SPATIAL_UNITS, MODEL_SHORTNAMES
 
 

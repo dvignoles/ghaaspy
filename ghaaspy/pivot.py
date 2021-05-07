@@ -1,4 +1,7 @@
+"""Creation of pivot tables & views from ghaas postgres tables"""
+
 import itertools 
+
 from .sqlgen import group1_create_pivot, group2_create_pivot, GROUP1, GROUP2, group1_create_yearly_views, group2_create_yearly_views
 from .util import group_geography_vs_model, clean_tablenames
 

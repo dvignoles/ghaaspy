@@ -1,5 +1,6 @@
-from psycopg2 import sql, connect
 from pathlib import Path
+
+from psycopg2 import sql, connect
 
 class PostgresDB:
     def __init__(self, database=None, user='postgres', password='admin', host='localhost', port=5432, verify=True):

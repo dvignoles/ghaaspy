@@ -1,3 +1,5 @@
+"""Geoserver REST scripting"""
+
 from geo.Geoserver import Geoserver
 
 def connect_geoserver(geoserver_url, user, password):
