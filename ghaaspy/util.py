@@ -78,3 +78,17 @@ def clean_tablenames(table_names):
         return schema, tables_clean
     else:
         return None, [_remove_embedded_quotes(t) for t in table_names]
+
+    
+def copy_dirstruct(inputdir:Path, outputpath:Path, relativeto:Path) -> Path:
+
+    if inputdir.is_file():
+        inputdir = inputdir.parent
+
+    inputdir_relative = inputdir.relative_to(relativeto)
+    output_dir = outputpath.joinpath(inputdir_relative)
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+
+    return output_dir
