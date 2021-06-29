@@ -1,7 +1,9 @@
 import unittest
-from gpkgimport.ghaasgpkg.gpkg import *
 from pathlib import Path
 
+from ghaaspy.gpkg import *
+from ghaaspy.util import *
+from ghaaspy.pivot import *
 
 class TestGpkg(unittest.TestCase):
 

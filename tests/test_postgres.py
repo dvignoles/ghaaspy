@@ -1,5 +1,5 @@
 import unittest
-from gpkgimport.ghaasgpkg.postgres import PostgresDB
+from ghaaspy.postgres import PostgresDB
 from pathlib import Path
 
 class TestPostgres(unittest.TestCase):
@@ -29,8 +29,8 @@ class TestPostgres(unittest.TestCase):
         self.assertRaises(AssertionError, PostgresDB.from_gdal_string,"dbname=mydb1 host=98.76.54.123 port=5435", verify=False)
 
     def test_get_gdal_string(self):
-        mydb1 = PostgresDB(database='mydiddlydb', user='dvignoles', password='supersecure', host='800.888.8888', port='41968')
-        self.assertEqual(mydb1.get_gdal_string(), '"dbname=mydiddlydb host=800.888.8888 port=41968 user=dvignoles password=supersecure"')
+        mydb1 = PostgresDB(database='mydiddlydb', user='dvignoles', password='supersecure', host='800.888.8888', port='41968', verify=False)
+        self.assertEqual(mydb1.get_gdal_string(), 'dbname=mydiddlydb host=800.888.8888 port=41968 user=dvignoles password=supersecure')
         
 if __name__ == '__main__':
     unittest.main()

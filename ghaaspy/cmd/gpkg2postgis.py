@@ -1,7 +1,9 @@
-from .ghaasgpkg.gpkg import import_gpkg, sanitize_path, list_to_file
-from .ghaasgpkg.postgres import PostgresDB
 import argparse
 from pathlib import Path
+
+from ..gpkg import import_gpkg
+from ..util import sanitize_path,list_to_file
+from ..postgres import PostgresDB
 
 def main():
     parser = argparse.ArgumentParser()
